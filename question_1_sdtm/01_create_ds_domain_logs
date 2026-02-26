@@ -1,0 +1,223 @@
+> #Read in data
+> library(sdtm.oak)
+> library(pharmaverseraw)
+> library(dplyr)
+> library(pharmaversesdtm)
+> 
+> #Read in DS raw data
+> ds_raw <- pharmaverseraw::ds_raw
+> View(ds_raw)
+> 
+> #Read in DM domain
+> dm <- pharmaversesdtm::dm
+> View(dm)
+> 
+> 
+> #Inspect data
+> colnames(ds_raw)
+ [1] "STUDY"      "PATNUM"     "SITENM"     "INSTANCE"  
+ [5] "FORM"       "FORML"      "IT.DSTERM"  "IT.DSDECOD"
+ [9] "OTHERSP"    "DSDTCOL"    "DSTMCOL"    "IT.DSSTDAT"
+[13] "DEATHDT"   
+> head(ds_raw, 10)
+# A tibble: 10 × 13
+   STUDY      PATNUM SITENM INSTANCE FORM  FORML IT.DSTERM
+   <chr>      <chr>  <chr>  <chr>    <chr> <chr> <chr>    
+ 1 CDISCPILO… 701-1… CDISC… Baseline DISC1 Subj… Randomiz…
+ 2 CDISCPILO… 701-1… CDISC… Week 26  DISC1 Subj… Protocol…
+ 3 CDISCPILO… 701-1… CDISC… Week 26  DISC1 Subj… NA       
+ 4 CDISCPILO… 701-1… CDISC… Baseline DISC1 Subj… Randomiz…
+ 5 CDISCPILO… 701-1… CDISC… Week 4   DISC1 Subj… Adverse …
+ 6 CDISCPILO… 701-1… CDISC… Week 4   DISC1 Subj… NA       
+ 7 CDISCPILO… 701-1… CDISC… Retriev… DISC1 Subj… NA       
+ 8 CDISCPILO… 701-1… CDISC… Baseline DISC1 Subj… Randomiz…
+ 9 CDISCPILO… 701-1… CDISC… Week 26  DISC1 Subj… Protocol…
+10 CDISCPILO… 701-1… CDISC… Week 26  DISC1 Subj… NA       
+# ℹ 6 more variables: IT.DSDECOD <chr>, OTHERSP <chr>,
+#   DSDTCOL <chr>, DSTMCOL <chr>, IT.DSSTDAT <chr>,
+#   DEATHDT <chr>
+> colnames(dm)
+ [1] "STUDYID"  "DOMAIN"   "USUBJID"  "SUBJID"  
+ [5] "RFSTDTC"  "RFENDTC"  "RFXSTDTC" "RFXENDTC"
+ [9] "RFICDTC"  "RFPENDTC" "DTHDTC"   "DTHFL"   
+[13] "SITEID"   "BRTHDTC"  "AGE"      "AGEU"    
+[17] "SEX"      "RACE"     "ETHNIC"   "ARMCD"   
+[21] "ARM"      "ACTARMCD" "ACTARM"   "COUNTRY" 
+[25] "DMDTC"    "DMDY"    
+> head(dm, 10)
+# A tibble: 10 × 26
+   STUDYID  DOMAIN USUBJID SUBJID RFSTDTC RFENDTC RFXSTDTC
+   <chr>    <chr>  <chr>   <chr>  <chr>   <chr>   <chr>   
+ 1 CDISCPI… DM     01-701… 1015   2014-0… 2014-0… 2014-01…
+ 2 CDISCPI… DM     01-701… 1023   2012-0… 2012-0… 2012-08…
+ 3 CDISCPI… DM     01-701… 1028   2013-0… 2014-0… 2013-07…
+ 4 CDISCPI… DM     01-701… 1033   2014-0… 2014-0… 2014-03…
+ 5 CDISCPI… DM     01-701… 1034   2014-0… 2014-1… 2014-07…
+ 6 CDISCPI… DM     01-701… 1047   2013-0… 2013-0… 2013-02…
+ 7 CDISCPI… DM     01-701… 1057   NA      NA      NA      
+ 8 CDISCPI… DM     01-701… 1097   2014-0… 2014-0… 2014-01…
+ 9 CDISCPI… DM     01-701… 1111   2012-0… 2012-0… 2012-09…
+10 CDISCPI… DM     01-701… 1115   2012-1… 2013-0… 2012-11…
+# ℹ 19 more variables: RFXENDTC <chr>, RFICDTC <chr>,
+#   RFPENDTC <chr>, DTHDTC <chr>, DTHFL <chr>,
+#   SITEID <chr>, BRTHDTC <chr>, AGE <dbl>, AGEU <chr>,
+#   SEX <chr>, RACE <chr>, ETHNIC <chr>, ARMCD <chr>,
+#   ARM <chr>, ACTARMCD <chr>, ACTARM <chr>,
+#   COUNTRY <chr>, DMDTC <chr>, DMDY <dbl>
+> 
+> #IT.DSSDAT misnamed as per eCRF for ds_raw
+> names(ds_raw) [names(ds_raw) == "IT.DSSTDAT"] <- "IT.DSSDAT"
+> 
+> #Check
+> colnames(ds_raw)
+ [1] "STUDY"      "PATNUM"     "SITENM"     "INSTANCE"  
+ [5] "FORM"       "FORML"      "IT.DSTERM"  "IT.DSDECOD"
+ [9] "OTHERSP"    "DSDTCOL"    "DSTMCOL"    "IT.DSSDAT" 
+[13] "DEATHDT"   
+> 
+> #Create oak_id_vars
+> ds_raw <- ds_raw %>%
++   generate_oak_id_vars(
++     pat_var = "PATNUM",
++     raw_src = "ds_raw"
++   )
+> 
+> View(ds_raw)
+> 
+> 
+> study_ct <- read.csv("sdtm_ct.csv")
+> 
+> ds <- 
++   # Derive topic variable
++   # Map DSTERM using assign_no_ct, raw_var = IT.DSTERM, tgt_var = DSTERM
++   assign_no_ct(
++     raw_dat = ds_raw,
++     raw_var = "IT.DSTERM",
++     tgt_var = "DSTERM",
++     id_vars = oak_id_vars()
++   ) %>%
++   # Map DSTERM when OTHERSP is not N/A using assign_no_ct, raw_var = OTHERSP, tgt var = DSTERM
++   assign_no_ct(
++     raw_dat = ds_raw,
++     raw_var = "OTHERSP",
++     tgt_var = "DSTERM",
++     id_vars = oak_id_vars()
++   ) 
+> 
+> #Validation check
+> View(ds)
+> 
+> ds <- ds %>%
++   #Map DSSTDTC using assign_datetime, raw_var = IT.DSSDAT
++   assign_datetime(
++     raw_dat = ds_raw,
++     raw_var = "IT.DSSDAT",
++     tgt_var = "DSSTDTC",
++     raw_fmt = c("m-d-y"),
++     raw_unk = c("UN","UNK"),
++     id_vars = oak_id_vars()
++   ) %>%
++   #Map DSDECOD using assign_ct, raw_var = IT.DSDECOD
++   assign_ct(
++     raw_dat = ds_raw,
++     raw_var = "IT.DSDECOD",
++     tgt_var = "DSDECOD",
++     ct_spec = study_ct,
++     ct_clst = "C66727",
++     id_vars = oak_id_vars()
++   ) %>%
++   #Map DSDECOD when OTHERSP is not N/A using assign_no_ct, raw_var = IT.DSDECOD
++   assign_no_ct(
++     raw_dat = ds_raw,
++     raw_var = "OTHERSP",
++     tgt_var = "DSDECOD",
++     id_vars = oak_id_vars()
++   ) %>%
++   #Map DSDTC using assign_datetime, raw_var = DSDTCOL + DSTMCOL
++   assign_datetime(
++     raw_dat = ds_raw,
++     raw_var = c("DSDTCOL", "DSTMCOL"),
++     tgt_var = "DSDTC",
++     raw_fmt = c("m-d-y", "H:M"),
++     raw_unk = c("UN","UNK"),
++     id_vars = oak_id_vars()
++   ) %>%
++   #Map DSCAT using hardcode_no_ct, raw_var = IT.DSDECOD
++   #hardcoded value "DISPOSITION EVENT" when IT.DSDECOD != "Randomized"
++   hardcode_no_ct(
++     tgt_val = "DISPOSITION EVENT",
++     raw_dat = condition_add(dat = ds_raw, IT.DSDECOD != "Randomized"),
++     raw_var = "IT.DSDECOD",
++     tgt_var = "DSCAT",
++     id_vars = oak_id_vars()
++   ) %>%
++   #Map DSCAT using hardcode_no_ct, raw_var = IT.DSDECOD
++   #hardcoded value "PROTOCOL MILESTONE" when IT.DSDECOD = "Randomized"
++   hardcode_no_ct(
++     tgt_val = "PROTOCOL MILESTONE",
++     raw_dat = condition_add(dat = ds_raw, IT.DSDECOD == "Randomized"),
++     raw_var = "IT.DSDECOD",
++     tgt_var = "DSCAT",
++     id_vars = oak_id_vars()
++   ) %>%
++   #Map DSCAT using hardcode_no_ct, raw_var = OTHERSP
++   #hardcoded value "OTHER EVENT" when OTHERSP != NA
++   hardcode_no_ct(
++     tgt_val = "OTHER EVENT",
++     raw_dat = ds_raw,
++     raw_var = "OTHERSP",
++     tgt_var = "DSCAT",
++     id_vars = oak_id_vars()
++   ) %>%
++   # Map VISIT from INSTANCE using assign_ct
++   assign_ct(
++     raw_dat = ds_raw,
++     raw_var = "INSTANCE",
++     tgt_var = "VISIT",
++     ct_spec = study_ct,
++     ct_clst = "VISIT",
++     id_vars = oak_id_vars()
++   ) %>%
++   # Map VISITNUM from INSTANCE using assign_ct
++   assign_ct(
++     raw_dat = ds_raw,
++     raw_var = "INSTANCE",
++     tgt_var = "VISITNUM",
++     ct_spec = study_ct,
++     ct_clst = "VISITNUM",
++     id_vars = oak_id_vars()
++   )
+ℹ These terms could not be mapped per the controlled terminology: "Randomized", "Completed", "Study Terminated by Sponsor", "Screen Failure", and "Lost to Follow-Up".
+ℹ These terms could not be mapped per the controlled terminology: "Ambul Ecg Removal", "Unscheduled 6.1", "Unscheduled 1.1", "Unscheduled 5.1", "Unscheduled 4.1", "Unscheduled 8.2", and "Unscheduled 13.1".
+ℹ These terms could not be mapped per the controlled terminology: "Ambul Ecg Removal", "Unscheduled 6.1", "Unscheduled 1.1", "Unscheduled 5.1", "Unscheduled 4.1", "Unscheduled 8.2", and "Unscheduled 13.1".
+>   
+> #Validation check
+> View(ds)
+> 
+> #Create SDTM Derived variables
+> ds <- ds %>%
++   dplyr::mutate(
++     STUDYID = ds_raw$STUDY,
++     DOMAIN = "DS",
++     USUBJID = paste0("01-", ds_raw$PATNUM),
++     DSTERM = toupper(DSTERM),
++     DSDECOD = toupper(DSDECOD),
++   ) %>%
++   derive_seq(
++     tgt_var = "DSSEQ",
++     rec_var = c("USUBJID", "DSTERM")
++   ) %>%
++   derive_study_day(
++     sdtm_in = .,
++     dm_domain = dm,
++     tgdt = "DSSTDTC",
++     refdt = "RFSTDTC",
++     study_day_var = "DSSTDY"
++   ) %>%
++   select(
++     "STUDYID", "DOMAIN", "USUBJID", "DSSEQ", "DSTERM", "DSDECOD", "DSCAT", "VISITNUM", 
++     "VISIT", "DSDTC", "DSSTDTC", "DSSTDY"
++   )
+> 
+> View(ds)
+> write.csv(ds, file = "question_1_sdtm_dataset.csv")
