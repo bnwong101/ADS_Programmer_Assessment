@@ -1,0 +1,37 @@
+#ADS Programmer Coding Assessment
+#Question 3: Summary Table - Brandon Wong
+
+#Install packages
+install.packages(c("admiral", "sdtm.oak", "gt", "ggplot2", "pharmaverseraw", "pharmaversesdtm", "pharmaverseadam", "gtsummary"))
+
+#Read in data
+library(ggplot2)
+library(pharmaverseadam)
+library(gtsummary)
+library(dplyr)
+
+#Input datasets
+adae <- pharmaverseadam::adae
+adsl <- pharmaverseadam::adsl
+
+View(adae)
+View(adsl)
+
+#Pre-processing (Treatment-emergent adverse events)
+adae <- adae |>
+  filter(TRTEMFL == "Y")
+
+#Build summary table
+tbl <- tbl_hierarchical(
+  data = adae,  
+  variables = c(AESOC, AETERM),
+    by = ACTARM,
+    id = USUBJID,
+    denominator = adsl,
+    overall_row = TRUE,
+    label = "..ard_hierarchical_overall.." ~ "Treatment Emergent AEs",
+  )
+
+#Sort by descending frequency
+sort_hierarchical(tbl)
+
