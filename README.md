@@ -9,7 +9,7 @@ question_1_sdtm
 
   -> question_1_sdtm_dataset.csv: Output dataset
 
-    -> Logs included as 01_create_ds_domain_logs
+  -> Logs included as 01_create_ds_domain_logs.txt
 
 question_2_adam
 
@@ -17,16 +17,16 @@ question_2_adam
 
   -> question_2_adam_dataset.csv: Final ADSL output
 
-    -> Logs included as create_adsl_logs
+  -> Logs included as create_adsl_logs.txt
 
 question_3_tlg
 
 -> 01_create_ae_summary_table.R: Generates AE summary table
 
-  -> Output: 01_ae_summary_table.html
+  -> Output: 01_ae_summary_table.html (Output can be viewed after downloading html and opening in your web browser)
 
 -> 02_create_visualizations.R: Generates ggplot2 visualizations for adverse events reporting
 
   -> Output: ae_severity_distribution.png & ae_frequency_top10.png
 
-    -> Logs are included for both R scripts.
+  -> Logs are included for both R scripts.
