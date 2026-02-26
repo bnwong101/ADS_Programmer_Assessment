@@ -1,0 +1,158 @@
+#ADS Programmer Coding Assessment
+#Question 2 - Brandon Wong
+
+#Install packages
+#install.packages(c("admiral", "sdtm.oak", "gt", "ggplot2", "pharmaverseraw", "pharmaversesdtm"))
+
+#Read in data
+library(admiral)
+library(dplyr, warn.conflicts = FALSE)
+library(pharmaversesdtm)
+library(lubridate)
+library(stringr)
+
+#Input datasets
+dm <- pharmaversesdtm::dm
+vs <- pharmaversesdtm::vs
+ex <- pharmaversesdtm::ex
+ds <- pharmaversesdtm::ds
+ae <- pharmaversesdtm::ae
+
+
+#DM domain used as basis for ADSL
+adsl <- dm %>%
+  select(-DOMAIN)
+
+View(adsl)
+
+#AGEGR9 and AGEGR9N
+#Create lookup tables
+agegr9_lookup <- exprs(
+  ~condition,           ~AGEGR9,
+  AGE < 18,               "<18",
+  between(AGE, 18, 64), "18-64",
+  AGE > 64,               ">64",
+  is.na(AGE),         "Missing"
+)
+
+agegr9n_lookup <- exprs(
+  ~condition,           ~AGEGR9N,
+  AGE < 18,  1,
+  between(AGE, 18, 64),  2,
+  AGE > 64,  3,
+  is.na(AGE),  0
+)
+
+#Derive AGEGR9 and AGEGR9N
+adsl <- adsl %>%
+  derive_vars_cat(
+    definition = agegr9_lookup
+  ) %>%
+  derive_vars_cat(
+    definition = agegr9n_lookup
+  )
+
+#TRTSDTM and TRTSTMF
+View(ex)
+
+#Impute start time of exposure to first
+#Do not impute date
+ex_ext <- ex %>%
+  derive_vars_dtm(
+    dtc = EXSTDTC,
+    new_vars_prefix = "EXST"
+  ) %>%
+  derive_vars_dtm(
+    dtc = EXENDTC,
+    new_vars_prefix = "EXEN",
+    time_imputation = "last"
+  )
+
+adsl <- adsl %>%
+  derive_vars_merged(
+    dataset_add = ex_ext,
+    filter_add = (EXDOSE > 0 | (EXDOSE == 0 & str_detect(EXTRT, "PLACEBO"))) & !is.na(EXSTDTM),
+    new_vars = exprs(TRTSDTM = EXSTDTM, TRTSTMF = EXSTTMF),
+    order = exprs(EXSTDTM, EXSEQ),
+    mode = "first",
+    by_vars = exprs(STUDYID, USUBJID)
+  ) %>%
+  derive_vars_merged(
+    dataset_add = ex_ext,
+    filter_add = (EXDOSE > 0 | (EXDOSE == 0 & str_detect(EXTRT, "PLACEBO"))) & !is.na(EXENDTM),
+    new_vars = exprs(TRTEDTM = EXENDTM, TRTETMF = EXENTMF),
+    order = exprs(EXENDTM, EXSEQ),
+    mode = "last",
+    by_vars = exprs(STUDYID, USUBJID)
+  )
+
+View(adsl)
+
+#Derive ITTFL (randomization flag)
+adsl <- adsl %>%
+  mutate(
+  ITTFL = if_else(!is.na(ARM), "Y", "N")
+)
+
+#Derive LSTAVLDT
+
+adsl <- adsl %>%
+  derive_vars_extreme_event(
+    by_vars = exprs(STUDYID, USUBJID),
+    events = list(
+      # VS – last valid vital sign
+      event(
+        dataset_name = "vs",
+        order = exprs(VSDTC, VSSEQ),
+        condition =
+          !(is.na(VSSTRESN) & is.na(VSSTRESC)) &
+          !is.na(VSDTC),
+        set_values_to = exprs(
+          LSTAVLDT = convert_dtc_to_dt(VSDTC),
+          seq = VSSEQ
+        )
+      ),
+      # AE – last onset date only
+      event(
+        dataset_name = "ae",
+        order = exprs(AESTDTC, AESEQ),
+        condition = !is.na(AESTDTC),
+        set_values_to = exprs(
+          LSTAVLDT = convert_dtc_to_dt(AESTDTC),
+          seq = AESEQ
+        )
+      ),
+      # DS – last disposition start date
+      event(
+        dataset_name = "ds",
+        order = exprs(DSSTDTC, DSSEQ),
+        condition = !is.na(DSSTDTC),
+        set_values_to = exprs(
+          LSTAVLDT = convert_dtc_to_dt(DSSTDTC),
+          seq = DSSEQ
+        )
+      ),
+      # Treatment end from ADSL
+      event(
+        dataset_name = "adsl",
+        condition = !is.na(TRTEDTM),
+        set_values_to = exprs(
+          LSTAVLDT = as.Date(TRTEDTM),
+          seq = 0
+        )
+      )
+    ),
+    source_datasets = list(
+      vs = vs,
+      ae = ae,
+      ds = ds,
+      adsl = adsl
+    ),
+    tmp_event_nr_var = event_nr,
+    order = exprs(LSTAVLDT, seq, event_nr),
+    mode = "last",
+    new_vars = exprs(LSTAVLDT)
+  )
+
+View(adsl)
+write.csv(ds, file = "question_2_adam_dataset.csv")
